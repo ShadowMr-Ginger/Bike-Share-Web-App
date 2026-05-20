@@ -1,4 +1,4 @@
-# 🚲 Dublin Bikes — Group 15
+# 🚲 Dublin Bikes
 
 A full-stack web application for exploring Dublin Bikes stations, checking real-time availability, planning routes, and predicting future bike availability using a machine learning model.
 
@@ -167,16 +167,3 @@ The model predicts `num_bikes_available` for a given station, hour, day, and wea
 
 **Performance:** MAE 1.67 bikes · R2 0.92
 
----
-
-## Team
-
-| Name            | GitHub          |
-| --------------- | --------------- |
-| Haixiao Yang    | HazelY90        |
-| Jianqiao Xu     | ShadowMr-Ginger |
-| Jordan Hennessy | jordan-hennessy |
-
----
-
-_COMP30830 Software Engineering - University College Dublin, 2026_
