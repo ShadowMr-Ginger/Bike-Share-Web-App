@@ -1,0 +1,4 @@
+1:"$Sreact.fragment"
+2:I[8452,["/bike-share/_next/static/chunks/9cb1ff0d7e39104c.js"],"default"]
+3:I[89185,["/bike-share/_next/static/chunks/9cb1ff0d7e39104c.js"],"default"]
+0:{"buildId":"Tz4o_YkDfZKWCIax7OFLm","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"parallelRouterKey":"children","template":["$","$L3",null,{}]}]]}],"loading":null,"isPartial":false}

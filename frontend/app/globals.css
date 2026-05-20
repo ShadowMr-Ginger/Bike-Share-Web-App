@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+/* 可选：调试用 */
+body {
+  background: #f0f0f0;
+}
