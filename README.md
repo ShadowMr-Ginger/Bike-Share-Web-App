@@ -160,6 +160,5 @@ The model predicts `num_bikes_available` for a given station, hour, day, and wea
 | `rainy`       | int   | 0 = dry, 1 = raining        | `0`     |
 
 
-
 **Performance:** MAE 1.67 bikes · R2 0.92
 
