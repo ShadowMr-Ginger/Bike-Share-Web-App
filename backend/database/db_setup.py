@@ -12,9 +12,14 @@ def create_db_engine():
     '''
     user = os.getenv('DB_USER')
     password = os.getenv('DB_PASSWORD')
-    port = os.getenv('DB_PORT')
+    port = os.getenv('DB_PORT', '3306')  # Default to 3306 if not set
     db_name = os.getenv('DB_NAME')
-    uri = os.getenv('DB_URI')
+    uri = os.getenv('DB_URI', 'localhost')  # Default to localhost if not set
+    
+    # Validate and clean port value
+    if port is None or port == 'None' or port == '':
+        port = '3306'
+    
     # connect to mysql
     connection_string = "mysql+pymysql://{}:{}@{}:{}".format(user, password, uri, port)
     engine = create_engine(connection_string)
@@ -159,4 +164,21 @@ def create_tables(engine):
         print("Table creating failed")
         print("Error: ", e)
 
-engine=create_db_engine()
+# 只在直接运行此文件时创建数据库
+# 正常情况下，应该先运行 init_database.py 进行初始化
+if __name__ == "__main__":
+    engine = create_db_engine()
+else:
+    # 当被其他模块导入时，只连接到已存在的数据库
+    user = os.getenv('DB_USER')
+    password = os.getenv('DB_PASSWORD')
+    port = os.getenv('DB_PORT', '3306')
+    db_name = os.getenv('DB_NAME')
+    uri = os.getenv('DB_URI', 'localhost')
+    
+    # 验证并清理端口值
+    if port is None or port == 'None' or port == '':
+        port = '3306'
+    
+    connection_string = "mysql+pymysql://{}:{}@{}:{}/{}".format(user, password, uri, port, db_name)
+    engine = create_engine(connection_string)
