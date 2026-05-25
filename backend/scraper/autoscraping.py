@@ -10,6 +10,7 @@ def auto_scraping():
     # get dynamic station data and current weather data:
     bikes = sc.get_bike_data()
     if bikes:
+        db.write_to_db_station(bikes)
         db.write_to_db_avail(bikes)
     current_weather = sc.get_current_weather()
     if current_weather:
