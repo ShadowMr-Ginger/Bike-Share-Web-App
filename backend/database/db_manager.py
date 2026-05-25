@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from database.db_setup import engine
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 import hashlib
 
@@ -97,11 +97,11 @@ def write_to_db_avail(stations):
                 connection.execute(text(sql), vals)
 
             # delete the old data
-            sql = """
-            DELETE FROM availability 
-            WHERE last_update < datetime('now', '-7 days', 'localtime');
-            """
-            connection.execute(text(sql))
+            cutoff = datetime.now() - timedelta(days=7)
+            connection.execute(
+                text("DELETE FROM availability WHERE last_update < :cutoff"),
+                {"cutoff": cutoff}
+            )
 
             # commit all the changes
             connection.commit()
@@ -148,11 +148,11 @@ def write_to_db_current_weather(weather):
             connection.execute(text(sql), vals)
 
             # delete the old data
-            sql = """
-            DELETE FROM current_weather 
-            WHERE dt < datetime('now', '-48 hours', 'localtime');
-            """
-            connection.execute(text(sql))
+            cutoff = datetime.now() - timedelta(hours=48)
+            connection.execute(
+                text("DELETE FROM current_weather WHERE dt < :cutoff"),
+                {"cutoff": cutoff}
+            )
             # commit all the changes
             connection.commit()
             print(
@@ -202,12 +202,12 @@ def write_to_db_forecast_hourly(weathers):
                 """
                 connection.execute(text(sql), vals)
 
-                # delete the old data
-                sql = """
-                DELETE FROM forecast_hourly 
-                WHERE dt < datetime('now', 'localtime');
-                """
-                connection.execute(text(sql))
+            # delete the old data
+            cutoff = datetime.now()
+            connection.execute(
+                text("DELETE FROM forecast_hourly WHERE dt < :cutoff"),
+                {"cutoff": cutoff}
+            )
 
             # commit all the changes
             connection.commit()
@@ -259,11 +259,11 @@ def write_to_db_forecast_daily(weathers):
                 connection.execute(text(sql), vals)
 
             # delete the old data
-            sql = """
-            DELETE FROM forecast_daily 
-            WHERE dt < date('now', 'localtime');
-            """
-            connection.execute(text(sql))
+            cutoff = datetime.now().date()
+            connection.execute(
+                text("DELETE FROM forecast_daily WHERE dt < :cutoff"),
+                {"cutoff": cutoff}
+            )
 
             # commit all the changes
             connection.commit()
@@ -528,6 +528,10 @@ def read_station_history(station_number):
     try:
         with engine.connect() as connection:
 
+            # Compute bounds in Python to avoid SQLite localtime quirks
+            upper = datetime.now()
+            lower = upper - timedelta(hours=24)
+
             # get hourly history data
             sql = text(
                 """
@@ -537,13 +541,13 @@ def read_station_history(station_number):
                 ROUND(AVG(available_bike_stands),2) as stands
             FROM availability
             WHERE number = :n
-            AND last_update >= datetime('now', 'localtime', 'start of hour', '-24 hours')
-            AND last_update <  datetime('now', 'localtime', 'start of hour')
+            AND last_update >= :lower
+            AND last_update < :upper
             GROUP BY hour
             ORDER BY MIN(last_update);
         """
             )
-            hourly = connection.execute(sql, {"n": station_number}).mappings().all()
+            hourly = connection.execute(sql, {"n": station_number, "lower": lower, "upper": upper}).mappings().all()
             result = []
             if hourly:
                 for row in hourly:
@@ -572,6 +576,9 @@ def read_daily_average(station_number):
     try:
         with engine.connect() as connection:
 
+            # Compute bound in Python to avoid SQLite localtime quirks
+            lower = datetime.now() - timedelta(days=7)
+
             # get daily history data
             sql = text(
                 """
@@ -580,12 +587,12 @@ def read_daily_average(station_number):
                     ROUND(AVG(available_bikes),2) as bikes,
                     ROUND(AVG(available_bike_stands),2) as stands
                 FROM availability
-                WHERE number = :n AND last_update > datetime('now', '-7 days', 'localtime')
+                WHERE number = :n AND last_update > :lower
                 GROUP BY date
                 ORDER BY MIN(last_update);
             """
             )
-            daily = connection.execute(sql, {"n": station_number}).mappings().all()
+            daily = connection.execute(sql, {"n": station_number, "lower": lower}).mappings().all()
 
             result = []
             if daily:
