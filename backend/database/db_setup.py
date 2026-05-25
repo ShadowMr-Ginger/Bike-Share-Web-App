@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine,text
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 import os
 from dotenv import load_dotenv
@@ -8,49 +8,30 @@ load_dotenv()
 def create_db_engine():
     '''
     Create the database and return the engine.
-    This function is tend to be run for only once.
+    Uses SQLite - no MySQL installation required!
     '''
-    user = os.getenv('DB_USER')
-    password = os.getenv('DB_PASSWORD')
-    port = os.getenv('DB_PORT', '3306')  # Default to 3306 if not set
-    db_name = os.getenv('DB_NAME')
-    uri = os.getenv('DB_URI', 'localhost')  # Default to localhost if not set
+    # Get database path from env or use default
+    db_path = os.getenv('DB_PATH', 'data/bike_share.db')
     
-    # Validate and clean port value
-    if port is None or port == 'None' or port == '':
-        port = '3306'
+    # Ensure data directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     
-    # connect to mysql
-    connection_string = "mysql+pymysql://{}:{}@{}:{}".format(user, password, uri, port)
+    # Create SQLite connection string
+    connection_string = f"sqlite:///{db_path}"
     engine = create_engine(connection_string)
-
-    # create database
-    try:
-        with engine.connect() as connection:
-            sql = """
-            CREATE DATABASE IF NOT EXISTS {};
-            """.format(db_name)
-            connection.execute(text(sql))
-            connection.commit()
-            print(f"{db_name} created successfully.")
-    except SQLAlchemyError as e:
-        print("Fail to create database.")
-        print("Error:",e)
     
-    connection_string = "mysql+pymysql://{}:{}@{}:{}/{}".format(user, password, uri, port,db_name)
-    engine = create_engine(connection_string)
-
+    print(f"Using SQLite database at: {db_path}")
+    
+    # Create tables
     create_tables(engine)
-
+    
     return engine
 
 
 def create_tables(engine):
     '''
-    Create the tables.
-    This function is tend to be run for only once.
-    All the names of tables and attributes are lowercased.
-    All the name of attributes keep the same with raw data.
+    Create the tables for SQLite.
+    SQLite-compatible syntax (no UNSIGNED, no AUTO_INCREMENT, no ENGINE).
     '''
 
     try:
@@ -59,109 +40,113 @@ def create_tables(engine):
             # create the table station
             sql = '''
             CREATE TABLE IF NOT EXISTS station (
-            number SMALLINT UNSIGNED NOT NULL PRIMARY KEY,
-            name VARCHAR(50),               
-            address VARCHAR(100), 
-            position_lat DOUBLE,
-            position_lng DOUBLE,
-            bike_stands SMALLINT UNSIGNED,
-            banking TINYINT(1),
-            bonus TINYINT(1)
+                number INTEGER NOT NULL PRIMARY KEY,
+                name VARCHAR(50),               
+                address VARCHAR(100), 
+                position_lat REAL,
+                position_lng REAL,
+                bike_stands INTEGER,
+                banking INTEGER,
+                bonus INTEGER
             );'''
             connection.execute(text(sql))
-            
             
             # create the table availability
             sql = '''
             CREATE TABLE IF NOT EXISTS availability (
-            number SMALLINT UNSIGNED,
-            available_bikes SMALLINT UNSIGNED,
-            available_bike_stands SMALLINT UNSIGNED,
-            last_update DATETIME,
-            status VARCHAR(10), 
-            PRIMARY KEY (number,last_update),
-            INDEX idx_last_update (last_update),
-            FOREIGN KEY (number) REFERENCES station(number)
-                ON UPDATE CASCADE
-                ON DELETE CASCADE
+                number INTEGER,
+                available_bikes INTEGER,
+                available_bike_stands INTEGER,
+                last_update DATETIME,
+                status VARCHAR(10), 
+                PRIMARY KEY (number, last_update),
+                FOREIGN KEY (number) REFERENCES station(number)
+                    ON UPDATE CASCADE
+                    ON DELETE CASCADE
             );
             '''
             connection.execute(text(sql))
             
-            # creaete table user
-            sql='''
-            CREATE TABLE IF NOT EXISTS user (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            email VARCHAR(100) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            avatar_url VARCHAR(255) DEFAULT "",
-            create_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            token VARCHAR(255) UNIQUE
-            )ENGINE=InnoDB AUTO_INCREMENT=1000;
+            # create index for availability
+            sql = '''
+            CREATE INDEX IF NOT EXISTS idx_last_update ON availability(last_update);
             '''
             connection.execute(text(sql))
             
-            # creaete table favorite
-            sql='''
+            # create table user
+            sql = '''
+            CREATE TABLE IF NOT EXISTS user (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email VARCHAR(100) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                avatar_url VARCHAR(255) DEFAULT '',
+                create_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                token VARCHAR(255) UNIQUE
+            );
+            '''
+            connection.execute(text(sql))
+            
+            # create table favorite
+            sql = '''
             CREATE TABLE IF NOT EXISTS favorite (
-            user_id INT,
-            station_number SMALLINT UNSIGNED,
-            PRIMARY KEY (user_id,station_number),
-            FOREIGN KEY (station_number) REFERENCES station(number)
-                ON UPDATE CASCADE
-                ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES user(id)
-                ON UPDATE CASCADE
-                ON DELETE CASCADE
+                user_id INTEGER,
+                station_number INTEGER,
+                PRIMARY KEY (user_id, station_number),
+                FOREIGN KEY (station_number) REFERENCES station(number)
+                    ON UPDATE CASCADE
+                    ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES user(id)
+                    ON UPDATE CASCADE
+                    ON DELETE CASCADE
             );
             '''
             connection.execute(text(sql))
             
             # create table current_weather
-            sql='''
+            sql = '''
             CREATE TABLE IF NOT EXISTS current_weather (
-            dt DATETIME PRIMARY KEY,
-            temperature FLOAT,
-            windspeed FLOAT,
-            appearent_temperature FLOAT,
-            weathercode INTEGER
+                dt DATETIME PRIMARY KEY,
+                temperature REAL,
+                windspeed REAL,
+                appearent_temperature REAL,
+                weathercode INTEGER
             );
             '''
             connection.execute(text(sql))
             
             # create table forecast_hourly
-            sql='''
+            sql = '''
             CREATE TABLE IF NOT EXISTS forecast_hourly (
-            dt DATETIME PRIMARY KEY,
-            temperature FLOAT,
-            windspeed FLOAT,
-            weathercode INTEGER
+                dt DATETIME PRIMARY KEY,
+                temperature REAL,
+                windspeed REAL,
+                weathercode INTEGER
             );
             '''
             connection.execute(text(sql))
             
             # create table forecast_daily
-            sql='''
+            sql = '''
             CREATE TABLE IF NOT EXISTS forecast_daily (
-            dt DATE PRIMARY KEY,
-            temp_max FLOAT,
-            temp_min FLOAT,
-            weathercode INTEGER
+                dt DATE PRIMARY KEY,
+                temp_max REAL,
+                temp_min REAL,
+                weathercode INTEGER
             );
             '''
             connection.execute(text(sql))
             
             connection.commit()
-            print("Table station created successfully.")
-            print("Table availability created successfully.")
-            print("Table user created successfully.")
-            print("Table favorite created successfully.")
-            print("Table current_weather created successfully.")
-            print("Table forecast_hourly created successfully.")
-            print("Table forecast_daily created successfully.")
+            print("✅ Table station created successfully.")
+            print("✅ Table availability created successfully.")
+            print("✅ Table user created successfully.")
+            print("✅ Table favorite created successfully.")
+            print("✅ Table current_weather created successfully.")
+            print("✅ Table forecast_hourly created successfully.")
+            print("✅ Table forecast_daily created successfully.")
             
     except SQLAlchemyError as e:
-        print("Table creating failed")
+        print("❌ Table creating failed")
         print("Error: ", e)
 
 # 只在直接运行此文件时创建数据库
@@ -169,16 +154,7 @@ def create_tables(engine):
 if __name__ == "__main__":
     engine = create_db_engine()
 else:
-    # 当被其他模块导入时，只连接到已存在的数据库
-    user = os.getenv('DB_USER')
-    password = os.getenv('DB_PASSWORD')
-    port = os.getenv('DB_PORT', '3306')
-    db_name = os.getenv('DB_NAME')
-    uri = os.getenv('DB_URI', 'localhost')
-    
-    # 验证并清理端口值
-    if port is None or port == 'None' or port == '':
-        port = '3306'
-    
-    connection_string = "mysql+pymysql://{}:{}@{}:{}/{}".format(user, password, uri, port, db_name)
+    # 当被其他模块导入时，连接到 SQLite 数据库
+    db_path = os.getenv('DB_PATH', 'data/bike_share.db')
+    connection_string = f"sqlite:///{db_path}"
     engine = create_engine(connection_string)

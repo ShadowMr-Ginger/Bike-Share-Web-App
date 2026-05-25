@@ -1,13 +1,12 @@
 """
-数据库初始化脚本
-自动检查 MySQL 连接、创建数据库和表
-运行此脚本后，可以直接运行 run.py
+数据库初始化脚本 - SQLite 版本
+自动创建 SQLite 数据库和表
+无需安装 MySQL！
 """
 
 import os
 import sys
 from dotenv import load_dotenv
-import pymysql
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -15,112 +14,41 @@ from sqlalchemy.exc import SQLAlchemyError
 load_dotenv()
 
 def get_db_config():
-    """获取数据库配置，提供默认值"""
-    config = {
-        'user': os.getenv('DB_USER', 'root'),
-        'password': os.getenv('DB_PASSWORD', ''),
-        'port': os.getenv('DB_PORT', '3306'),
-        'db_name': os.getenv('DB_NAME', 'local_databasejcdecaux'),
-        'uri': os.getenv('DB_URI', '127.0.0.1')
-    }
-    
-    # 清理端口值
-    if config['port'] is None or config['port'] == 'None' or config['port'] == '':
-        config['port'] = '3306'
-    
-    # 转换为整数
-    try:
-        config['port'] = int(config['port'])
-    except ValueError:
-        print(f"⚠️  警告: DB_PORT 值 '{config['port']}' 无效，使用默认值 3306")
-        config['port'] = 3306
-    
-    return config
+    """获取数据库配置"""
+    db_path = os.getenv('DB_PATH', 'data/bike_share.db')
+    return {'db_path': db_path}
 
-def test_mysql_connection(config):
-    """测试 MySQL 服务器连接"""
-    print("\n🔍 步骤 1: 测试 MySQL 服务器连接...")
-    print(f"   连接到: {config['user']}@{config['uri']}:{config['port']}")
+def create_database_and_tables(config):
+    """创建 SQLite 数据库和所有表"""
+    print(f"\n🔍 步骤 1: 创建 SQLite 数据库...")
+    print(f"   数据库路径: {config['db_path']}")
     
     try:
-        connection = pymysql.connect(
-            host=config['uri'],
-            user=config['user'],
-            password=config['password'],
-            port=config['port'],
-            connect_timeout=5
-        )
-        connection.close()
-        print("   ✅ MySQL 服务器连接成功！")
-        return True
-    except pymysql.err.OperationalError as e:
-        print(f"   ❌ MySQL 服务器连接失败: {e}")
-        print("\n💡 请检查:")
-        print("   1. MySQL 服务是否正在运行")
-        print("   2. 用户名和密码是否正确")
-        print("   3. 主机地址和端口是否正确")
-        print("   4. 防火墙是否允许连接")
-        return False
-    except Exception as e:
-        print(f"   ❌ 连接错误: {e}")
-        return False
-
-def create_database(config):
-    """创建数据库（如果不存在）"""
-    print(f"\n🔍 步骤 2: 创建数据库 '{config['db_name']}'...")
-    
-    try:
-        # 连接到 MySQL 服务器（不指定数据库）
-        connection = pymysql.connect(
-            host=config['uri'],
-            user=config['user'],
-            password=config['password'],
-            port=config['port']
-        )
+        # 确保目录存在
+        os.makedirs(os.path.dirname(config['db_path']), exist_ok=True)
         
-        cursor = connection.cursor()
-        
-        # 检查数据库是否存在
-        cursor.execute(f"SHOW DATABASES LIKE '{config['db_name']}'")
-        result = cursor.fetchone()
-        
-        if result:
-            print(f"   ℹ️  数据库 '{config['db_name']}' 已存在")
-        else:
-            # 创建数据库
-            cursor.execute(f"CREATE DATABASE {config['db_name']} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            print(f"   ✅ 数据库 '{config['db_name']}' 创建成功！")
-        
-        cursor.close()
-        connection.close()
-        return True
-        
-    except Exception as e:
-        print(f"   ❌ 创建数据库失败: {e}")
-        return False
-
-def create_tables(config):
-    """创建所有表"""
-    print(f"\n🔍 步骤 3: 创建数据表...")
-    
-    try:
-        # 连接到指定的数据库
-        connection_string = f"mysql+pymysql://{config['user']}:{config['password']}@{config['uri']}:{config['port']}/{config['db_name']}"
+        # 创建 SQLite 连接
+        connection_string = f"sqlite:///{config['db_path']}"
         engine = create_engine(connection_string)
+        
+        print(f"   ✅ SQLite 数据库连接成功！")
+        
+        # 创建表
+        print(f"\n🔍 步骤 2: 创建数据表...")
         
         with engine.connect() as conn:
             # 创建 station 表
             print("   📋 创建 station 表...")
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS station (
-                    number SMALLINT UNSIGNED NOT NULL PRIMARY KEY,
+                    number INTEGER NOT NULL PRIMARY KEY,
                     name VARCHAR(50),               
                     address VARCHAR(100), 
-                    position_lat DOUBLE,
-                    position_lng DOUBLE,
-                    bike_stands SMALLINT UNSIGNED,
-                    banking TINYINT(1),
-                    bonus TINYINT(1)
+                    position_lat REAL,
+                    position_lng REAL,
+                    bike_stands INTEGER,
+                    banking INTEGER,
+                    bonus INTEGER
                 )
             '''))
             
@@ -128,38 +56,42 @@ def create_tables(config):
             print("   📋 创建 availability 表...")
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS availability (
-                    number SMALLINT UNSIGNED,
-                    available_bikes SMALLINT UNSIGNED,
-                    available_bike_stands SMALLINT UNSIGNED,
+                    number INTEGER,
+                    available_bikes INTEGER,
+                    available_bike_stands INTEGER,
                     last_update DATETIME,
                     status VARCHAR(10), 
                     PRIMARY KEY (number, last_update),
-                    INDEX idx_last_update (last_update),
                     FOREIGN KEY (number) REFERENCES station(number)
                         ON UPDATE CASCADE
                         ON DELETE CASCADE
                 )
             '''))
             
+            # 创建索引
+            conn.execute(text('''
+                CREATE INDEX IF NOT EXISTS idx_last_update ON availability(last_update)
+            '''))
+            
             # 创建 user 表
             print("   📋 创建 user 表...")
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS user (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     email VARCHAR(100) UNIQUE NOT NULL,
                     password VARCHAR(255) NOT NULL,
-                    avatar_url VARCHAR(255) DEFAULT "",
+                    avatar_url VARCHAR(255) DEFAULT '',
                     create_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     token VARCHAR(255) UNIQUE
-                ) ENGINE=InnoDB AUTO_INCREMENT=1000
+                )
             '''))
             
             # 创建 favorite 表
             print("   📋 创建 favorite 表...")
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS favorite (
-                    user_id INT,
-                    station_number SMALLINT UNSIGNED,
+                    user_id INTEGER,
+                    station_number INTEGER,
                     PRIMARY KEY (user_id, station_number),
                     FOREIGN KEY (station_number) REFERENCES station(number)
                         ON UPDATE CASCADE
@@ -175,9 +107,9 @@ def create_tables(config):
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS current_weather (
                     dt DATETIME PRIMARY KEY,
-                    temperature FLOAT,
-                    windspeed FLOAT,
-                    appearent_temperature FLOAT,
+                    temperature REAL,
+                    windspeed REAL,
+                    appearent_temperature REAL,
                     weathercode INTEGER
                 )
             '''))
@@ -187,8 +119,8 @@ def create_tables(config):
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS forecast_hourly (
                     dt DATETIME PRIMARY KEY,
-                    temperature FLOAT,
-                    windspeed FLOAT,
+                    temperature REAL,
+                    windspeed REAL,
                     weathercode INTEGER
                 )
             '''))
@@ -198,8 +130,8 @@ def create_tables(config):
             conn.execute(text('''
                 CREATE TABLE IF NOT EXISTS forecast_daily (
                     dt DATE PRIMARY KEY,
-                    temp_max FLOAT,
-                    temp_min FLOAT,
+                    temp_max REAL,
+                    temp_min REAL,
                     weathercode INTEGER
                 )
             '''))
@@ -210,20 +142,20 @@ def create_tables(config):
         return True
         
     except Exception as e:
-        print(f"   ❌ 创建表失败: {e}")
+        print(f"   ❌ 创建失败: {e}")
         return False
 
 def verify_setup(config):
     """验证数据库设置"""
-    print(f"\n🔍 步骤 4: 验证数据库设置...")
+    print(f"\n🔍 步骤 3: 验证数据库设置...")
     
     try:
-        connection_string = f"mysql+pymysql://{config['user']}:{config['password']}@{config['uri']}:{config['port']}/{config['db_name']}"
+        connection_string = f"sqlite:///{config['db_path']}"
         engine = create_engine(connection_string)
         
         with engine.connect() as conn:
             # 检查所有表
-            result = conn.execute(text("SHOW TABLES"))
+            result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
             tables = [row[0] for row in result]
             
             expected_tables = [
@@ -251,39 +183,24 @@ def verify_setup(config):
 def main():
     """主函数"""
     print("=" * 70)
-    print("🚀 数据库初始化脚本")
+    print("🚀 SQLite 数据库初始化脚本")
     print("=" * 70)
+    print("\n✨ 使用 SQLite - 无需安装 MySQL！")
     
     # 获取配置
     config = get_db_config()
     
     print("\n📋 当前配置:")
-    print(f"   数据库用户: {config['user']}")
-    print(f"   数据库地址: {config['uri']}")
-    print(f"   数据库端口: {config['port']}")
-    print(f"   数据库名称: {config['db_name']}")
-    print(f"   密码: {'已设置' if config['password'] else '未设置'}")
+    print(f"   数据库类型: SQLite")
+    print(f"   数据库路径: {config['db_path']}")
+    print(f"   数据库大小: {'已存在' if os.path.exists(config['db_path']) else '将创建'}")
     
-    # 步骤 1: 测试连接
-    if not test_mysql_connection(config):
-        print("\n❌ 初始化失败: 无法连接到 MySQL 服务器")
-        print("\n💡 解决方案:")
-        print("   1. 确保 MySQL 服务正在运行")
-        print("   2. 检查 .env 文件中的数据库配置")
-        print("   3. 确认用户名和密码正确")
+    # 创建数据库和表
+    if not create_database_and_tables(config):
+        print("\n❌ 初始化失败")
         sys.exit(1)
     
-    # 步骤 2: 创建数据库
-    if not create_database(config):
-        print("\n❌ 初始化失败: 无法创建数据库")
-        sys.exit(1)
-    
-    # 步骤 3: 创建表
-    if not create_tables(config):
-        print("\n❌ 初始化失败: 无法创建数据表")
-        sys.exit(1)
-    
-    # 步骤 4: 验证设置
+    # 验证设置
     if not verify_setup(config):
         print("\n⚠️  警告: 数据库设置可能不完整")
     
@@ -293,8 +210,8 @@ def main():
     print("=" * 70)
     print("\n✅ 现在可以运行应用了:")
     print("   python run.py")
-    print("\n📚 或者运行测试:")
-    print("   python test_dependencies.py")
+    print("\n� 数据库文件位置:")
+    print(f"   {os.path.abspath(config['db_path'])}")
     print()
 
 if __name__ == "__main__":
