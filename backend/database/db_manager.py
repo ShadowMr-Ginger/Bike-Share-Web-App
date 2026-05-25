@@ -43,7 +43,7 @@ def write_to_db_station(stations):
                     "bonus": station.get("bonus"),
                 }
                 sql = """
-                INSERT IGNORE INTO station (number,name,address, position_lat,position_lng,bike_stands,banking, bonus) 
+                INSERT OR IGNORE INTO station (number,name,address, position_lat,position_lng,bike_stands,banking, bonus) 
                 VALUES (:number, :name, :address, :position_lat, :position_lng, :bike_stands, :banking, :bonus);
                 """
                 connection.execute(text(sql), vals)
@@ -91,7 +91,7 @@ def write_to_db_avail(stations):
                 }
 
                 sql = """
-                    INSERT IGNORE INTO availability (number,available_bikes,available_bike_stands, last_update,status) 
+                    INSERT OR IGNORE INTO availability (number,available_bikes,available_bike_stands, last_update,status) 
                     VALUES (:number, :available_bikes, :available_bike_stands, :last_update, :status);
                 """
                 connection.execute(text(sql), vals)
@@ -99,7 +99,7 @@ def write_to_db_avail(stations):
             # delete the old data
             sql = """
             DELETE FROM availability 
-            WHERE last_update < DATE_SUB(NOW(), INTERVAL 7 DAY);
+            WHERE last_update < datetime('now', '-7 days', 'localtime');
             """
             connection.execute(text(sql))
 
@@ -142,7 +142,7 @@ def write_to_db_current_weather(weather):
             }
 
             sql = """
-                INSERT IGNORE INTO current_weather (dt,temperature,windspeed,appearent_temperature,weathercode) 
+                INSERT OR IGNORE INTO current_weather (dt,temperature,windspeed,appearent_temperature,weathercode) 
                 VALUES (:dt,:temperature,:windspeed,:appearent_temperature,:weathercode);
             """
             connection.execute(text(sql), vals)
@@ -150,7 +150,7 @@ def write_to_db_current_weather(weather):
             # delete the old data
             sql = """
             DELETE FROM current_weather 
-            WHERE dt < DATE_SUB(NOW(), INTERVAL 48 HOUR);
+            WHERE dt < datetime('now', '-48 hours', 'localtime');
             """
             connection.execute(text(sql))
             # commit all the changes
@@ -195,17 +195,17 @@ def write_to_db_forecast_hourly(weathers):
                 sql = """
                     INSERT INTO forecast_hourly (dt,temperature,windspeed,weathercode) 
                     VALUES (:dt,:temperature,:windspeed,:weathercode)
-                        ON DUPLICATE KEY UPDATE 
-                            temperature = VALUES(temperature),
-                            windspeed = VALUES(windspeed),
-                            weathercode = VALUES(weathercode);
+                        ON CONFLICT(dt) DO UPDATE SET
+                            temperature = excluded.temperature,
+                            windspeed = excluded.windspeed,
+                            weathercode = excluded.weathercode;
                 """
                 connection.execute(text(sql), vals)
 
                 # delete the old data
                 sql = """
                 DELETE FROM forecast_hourly 
-                WHERE dt < NOW();
+                WHERE dt < datetime('now', 'localtime');
                 """
                 connection.execute(text(sql))
 
@@ -251,17 +251,17 @@ def write_to_db_forecast_daily(weathers):
                 sql = """
                     INSERT INTO forecast_daily (dt,temp_max,temp_min,weathercode) 
                     VALUES (:dt,:temp_max,:temp_min,:weathercode)
-                        ON DUPLICATE KEY UPDATE 
-                            temp_max = VALUES(temp_max),
-                            temp_min = VALUES(temp_min),
-                            weathercode = VALUES(weathercode);
+                        ON CONFLICT(dt) DO UPDATE SET
+                            temp_max = excluded.temp_max,
+                            temp_min = excluded.temp_min,
+                            weathercode = excluded.weathercode;
                 """
                 connection.execute(text(sql), vals)
 
             # delete the old data
             sql = """
             DELETE FROM forecast_daily 
-            WHERE dt < NOW();
+            WHERE dt < date('now', 'localtime');
             """
             connection.execute(text(sql))
 
@@ -394,7 +394,7 @@ def write_to_db_favorite(uid, station_number):
             vals = {"user_id": uid, "station_number": station_number}
             sql = text(
                 """
-                INSERT IGNORE INTO favorite (user_id,station_number)
+                INSERT OR IGNORE INTO favorite (user_id,station_number)
                 VALUES(:user_id,:station_number)
                 """
             )
@@ -502,7 +502,13 @@ def read_stations():
             if result:
                 for row in result:
                     row = dict(row)
-                    row["updated"] = int(row["updated"].timestamp())*1000
+                    updated = row["updated"]
+                    if isinstance(updated, str):
+                        try:
+                            updated = datetime.strptime(updated, "%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            updated = datetime.fromisoformat(updated)
+                    row["updated"] = int(updated.timestamp())*1000
                     stations.append(row)
             return stations
     except SQLAlchemyError as e:
@@ -526,13 +532,13 @@ def read_station_history(station_number):
             sql = text(
                 """
             SELECT
-                DATE_FORMAT(last_update, '%d-%m-%y %H:00:00') as hour,
+                strftime('%d-%m-%y %H:00:00', last_update) as hour,
                 ROUND(AVG(available_bikes),2) as bikes,
                 ROUND(AVG(available_bike_stands),2) as stands
             FROM availability
             WHERE number = :n
-            AND last_update >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00') - INTERVAL 24 HOUR
-            AND last_update <  DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
+            AND last_update >= datetime('now', 'localtime', 'start of hour', '-24 hours')
+            AND last_update <  datetime('now', 'localtime', 'start of hour')
             GROUP BY hour
             ORDER BY MIN(last_update);
         """
@@ -574,7 +580,7 @@ def read_daily_average(station_number):
                     ROUND(AVG(available_bikes),2) as bikes,
                     ROUND(AVG(available_bike_stands),2) as stands
                 FROM availability
-                WHERE number = :n AND last_update > NOW() - INTERVAL 7 DAY
+                WHERE number = :n AND last_update > datetime('now', '-7 days', 'localtime')
                 GROUP BY date
                 ORDER BY MIN(last_update);
             """
@@ -585,7 +591,10 @@ def read_daily_average(station_number):
             if daily:
                 for row in daily:
                     row = dict(row)
-                    date = row["date"].strftime("%a")
+                    date_val = row["date"]
+                    if isinstance(date_val, str):
+                        date_val = datetime.strptime(date_val, "%Y-%m-%d").date()
+                    date = date_val.strftime("%a")
                     bikes = float(row["bikes"]) if row["bikes"] else 0
                     stands = float(row["stands"]) if row["stands"] else 0
                     result.append({"weekday": date, "bikes": bikes, "stands": stands})
@@ -610,7 +619,10 @@ def read_current_weather():
             result = connection.execute(sql).mappings().fetchone()
             if result:
                 result = dict(result)
-                result["time"] = result["time"].strftime("%Y-%m-%dT%H:%M")
+                time_val = result["time"]
+                if isinstance(time_val, str):
+                    time_val = datetime.strptime(time_val, "%Y-%m-%d %H:%M:%S")
+                result["time"] = time_val.strftime("%Y-%m-%dT%H:%M")
             return result if result else {}
     except SQLAlchemyError as e:
         print(
@@ -631,7 +643,10 @@ def read_forecast_hourly():
             if result:
                 for row in result:
                     weather = dict(row)
-                    weather["time"] = weather["time"].strftime("%Y-%m-%dT%H:%M")
+                    time_val = weather["time"]
+                    if isinstance(time_val, str):
+                        time_val = datetime.strptime(time_val, "%Y-%m-%d %H:%M:%S")
+                    weather["time"] = time_val.strftime("%Y-%m-%dT%H:%M")
                     weathers.append(weather)
             return {"hourly": weathers}
     except SQLAlchemyError as e:
@@ -653,7 +668,10 @@ def read_forecast_daily():
             if result:
                 for row in result:
                     weather = dict(row)
-                    weather["date"] = weather["date"].strftime("%Y-%m-%d")
+                    date_val = weather["date"]
+                    if isinstance(date_val, str):
+                        date_val = datetime.strptime(date_val, "%Y-%m-%d").date()
+                    weather["date"] = date_val.strftime("%Y-%m-%d")
                     weathers.append(weather)
             return weathers
     except SQLAlchemyError as e:
@@ -741,7 +759,10 @@ def read_for_prediction(station_id):
             if weather_result:
                 for row in weather_result:
                     row=dict(row)
-                    time=row['time'].strftime("%Y-%m-%d %H:%M:%S")
+                    time=row['time']
+                    if isinstance(time, str):
+                        time=datetime.strptime(time, "%Y-%m-%d %H:%M:%S")
+                    time=time.strftime("%Y-%m-%d %H:%M:%S")
                     weather["time"].append(time)
                     weather["temperature"].append(row["temperature"])
                     weather["weathercode"].append(row["weathercode"])

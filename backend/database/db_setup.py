@@ -137,16 +137,16 @@ def create_tables(engine):
             connection.execute(text(sql))
             
             connection.commit()
-            print("✅ Table station created successfully.")
-            print("✅ Table availability created successfully.")
-            print("✅ Table user created successfully.")
-            print("✅ Table favorite created successfully.")
-            print("✅ Table current_weather created successfully.")
-            print("✅ Table forecast_hourly created successfully.")
-            print("✅ Table forecast_daily created successfully.")
+            print("[OK] Table station created successfully.")
+            print("[OK] Table availability created successfully.")
+            print("[OK] Table user created successfully.")
+            print("[OK] Table favorite created successfully.")
+            print("[OK] Table current_weather created successfully.")
+            print("[OK] Table forecast_hourly created successfully.")
+            print("[OK] Table forecast_daily created successfully.")
             
     except SQLAlchemyError as e:
-        print("❌ Table creating failed")
+        print("[FAIL] Table creating failed")
         print("Error: ", e)
 
 # 只在直接运行此文件时创建数据库
@@ -154,7 +154,9 @@ def create_tables(engine):
 if __name__ == "__main__":
     engine = create_db_engine()
 else:
-    # 当被其他模块导入时，连接到 SQLite 数据库
+    # 当被其他模块导入时，连接到 SQLite 数据库并确保表已创建
     db_path = os.getenv('DB_PATH', 'data/bike_share.db')
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     connection_string = f"sqlite:///{db_path}"
     engine = create_engine(connection_string)
+    create_tables(engine)

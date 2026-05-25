@@ -44,7 +44,7 @@ test_import("joblib", "(模型序列化)")
 print("\n🔍 测试数据库相关...")
 print("-" * 80)
 test_import("sqlalchemy", "(ORM)")
-test_import("pymysql", "(MySQL 驱动)")
+test_import("sqlite3", "(SQLite 内置驱动)")
 
 print("\n🔍 测试工具包...")
 print("-" * 80)
