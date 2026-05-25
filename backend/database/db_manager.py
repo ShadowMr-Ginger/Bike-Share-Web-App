@@ -536,7 +536,7 @@ def read_station_history(station_number):
             sql = text(
                 """
             SELECT
-                strftime('%d-%m-%y %H:00:00', last_update) as hour,
+                strftime('%d-%m-%Y %H:00:00', last_update) as hour,
                 ROUND(AVG(available_bikes),2) as bikes,
                 ROUND(AVG(available_bike_stands),2) as stands
             FROM availability
@@ -552,7 +552,7 @@ def read_station_history(station_number):
             if hourly:
                 for row in hourly:
                     row = dict(row)
-                    dt_obj = datetime.strptime(row["hour"], "%d-%m-%y %H:00:00")
+                    dt_obj = datetime.strptime(row["hour"], "%d-%m-%Y %H:00:00")
                     hour = dt_obj.strftime("%H:00")
                     bikes = float(row["bikes"]) if row["bikes"] else 0
                     stands = float(row["stands"]) if row["stands"] else 0
