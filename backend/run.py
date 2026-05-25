@@ -31,6 +31,8 @@ load_dotenv()
 
 from app import app
 from scraper.autoscraping import auto_scraping
+import scraper.scraper as sc
+import database.db_manager as db
 
 
 def run_initial_scrape():
@@ -41,6 +43,18 @@ def run_initial_scrape():
         print("[Startup] Initial scraping completed.")
     except Exception as e:
         print(f"[Startup] Initial scraping failed (non-fatal): {e}")
+
+    # Always fetch daily forecast on startup (independent of the 00:00-00:09 window)
+    print("[Startup] Fetching daily forecast...")
+    try:
+        forecast_daily = sc.get_daily_weather()
+        if forecast_daily:
+            db.write_to_db_forecast_daily(forecast_daily)
+            print("[Startup] Daily forecast loaded.")
+        else:
+            print("[Startup] Daily forecast empty (API may have no data).")
+    except Exception as e:
+        print(f"[Startup] Daily forecast fetch failed (non-fatal): {e}")
 
 
 def start_scheduler():
