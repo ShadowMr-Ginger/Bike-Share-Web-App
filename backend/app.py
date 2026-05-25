@@ -9,6 +9,7 @@ from flask_cors import CORS
 import direction
 from models import prediction_tools as prt
 import joblib
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # -----------------------------------------------------
 # The web page will load first and then fetch the data.
@@ -22,6 +23,11 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 app.secret_key = os.getenv("FLASK_SECRET_KEY")  # Load from .env
+
+# Trust X-Forwarded-* headers from Nginx reverse proxy
+app.wsgi_app = ProxyFix(
+    app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+)
 
 # Get API Keys
 google_key = os.getenv("GOOGLE_KEY")

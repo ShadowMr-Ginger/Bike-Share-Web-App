@@ -79,7 +79,9 @@ if __name__ == "__main__":
     start_scheduler()
 
     # 3. Production WSGI server
+    # Default to 127.0.0.1 so Nginx (on the same machine) is the only way in.
+    # Do NOT expose 0.0.0.0 directly when Nginx + SSL is in front.
     port = int(os.getenv("PORT", "5000"))
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "127.0.0.1")
     print(f"[Server] Starting Waitress on http://{host}:{port}")
     serve(app, host=host, port=port)
